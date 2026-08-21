@@ -1,14 +1,32 @@
+using Data;
+
+using Microsoft.EntityFrameworkCore;
+
 using Services.Interfaces;
 using Services.Interfaces.Models;
 
 namespace Services.Implementations;
 
-public sealed class ValueService : IValueService
+public sealed class ValueService(AppDbContext dbContext) : IValueService
 {
-    public Task<IReadOnlyList<ValueModel>> GetLatestAsync(
+    private const int LatestValuesCount = 10;
+
+    public async Task<IReadOnlyList<ValueModel>> GetLatestAsync(
         string filename,
         CancellationToken cancellationToken = default)
     {
-        return Task.FromResult<IReadOnlyList<ValueModel>>([]);
+        ArgumentException.ThrowIfNullOrWhiteSpace(filename);
+
+        return await dbContext.Results
+            .AsNoTracking()
+            .Where(result => result.Filename == filename)
+            .SelectMany(result => result.Values)
+            .OrderByDescending(value => value.Date)
+            .Take(LatestValuesCount)
+            .Select(value => new ValueModel(
+                value.Date,
+                value.ExecutionTime,
+                value.Value))
+            .ToListAsync(cancellationToken);
     }
 }
