@@ -6,6 +6,7 @@ using Data.Entities;
 using Microsoft.EntityFrameworkCore;
 
 using Services.Interfaces;
+using Services.Interfaces.Exceptions;
 
 namespace Services.Implementations;
 
@@ -25,7 +26,12 @@ public sealed class FileImportService(
         Stream data,
         CancellationToken cancellationToken = default)
     {
-        ValidateArguments(filename, data);
+        ArgumentException.ThrowIfNullOrWhiteSpace(filename);
+        ArgumentNullException.ThrowIfNull(data);
+        if (!data.CanRead)
+        {
+            throw new ArgumentException("Stream is not readable.", nameof(data));
+        }
 
         var now = timeProvider.GetUtcNow();
         var rows = new List<ValueEntity>(MaxRows);
@@ -43,7 +49,7 @@ public sealed class FileImportService(
         var header = await reader.ReadLineAsync(cancellationToken);
         if (!string.Equals(header, Header, StringComparison.Ordinal))
         {
-            throw new InvalidDataException($"CSV header must be '{Header}'.");
+            throw new CsvValidationException($"CSV header must be '{Header}'.");
         }
 
         string? line;
@@ -53,7 +59,7 @@ public sealed class FileImportService(
             var lineNumber = rowNumber + 1;
             if (rowNumber > MaxRows)
             {
-                throw new InvalidDataException($"CSV cannot contain more than {MaxRows} lines.");
+                throw new CsvValidationException($"CSV cannot contain more than {MaxRows} rows.");
             }
 
             var parsed = ParseLine(line, lineNumber, now);
@@ -85,7 +91,7 @@ public sealed class FileImportService(
         }
         if (rows.Count == 0)
         {
-            throw new InvalidDataException("CSV must contain at least one data row.");
+            throw new CsvValidationException("CSV must contain at least one data row.");
         }
 
         values.Sort();
@@ -125,7 +131,7 @@ public sealed class FileImportService(
     {
         if (line.Length == 0)
         {
-            throw new InvalidDataException($"Line {lineNumber}: empty line.");
+            throw new CsvValidationException($"Line {lineNumber}: empty line.");
         }
 
         var firstSeparator = line.IndexOf(';');
@@ -134,7 +140,7 @@ public sealed class FileImportService(
 
         if (firstSeparator < 0 || secondSeparator < 0 || thirdSeparator >= 0)
         {
-            throw new InvalidDataException($"Line {lineNumber}: expected Date;ExecutionTime;Value format.");
+            throw new CsvValidationException($"Line {lineNumber}: expected Date;ExecutionTime;Value format.");
         }
 
         var span = line.AsSpan();
@@ -144,43 +150,32 @@ public sealed class FileImportService(
 
         if (!DateTimeOffset.TryParseExact(dateSpan, DateFormat, CultureInfo.InvariantCulture, DateStyle, out var date))
         {
-            throw new InvalidDataException($"Line {lineNumber}: invalid Date value.");
+            throw new CsvValidationException($"Line {lineNumber}: invalid 'Date' value.");
         }
         if (date < MinAllowedDate || date > now)
         {
-            throw new InvalidDataException($"Line {lineNumber}: Date value out of range.");
+            throw new CsvValidationException($"Line {lineNumber}: 'Date' value out of range.");
         }
 
         if (!double.TryParse(executionTimeSpan, NumberStyles.Float, CultureInfo.InvariantCulture, out var executionTime))
         {
-            throw new InvalidDataException($"Line {lineNumber}: invalid ExecutionTime value.");
+            throw new CsvValidationException($"Line {lineNumber}: invalid 'ExecutionTime' value.");
         }
         if (!double.IsFinite(executionTime) || executionTime < 0)
         {
-            throw new InvalidDataException($"Line {lineNumber}: invalid ExecutionTime value.");
+            throw new CsvValidationException($"Line {lineNumber}: 'ExecutionTime' value out of range.");
         }
 
         if (!double.TryParse(valueSpan, NumberStyles.Float, CultureInfo.InvariantCulture, out var value))
         {
-            throw new InvalidDataException($"Line {lineNumber}: invalid Value value.");
+            throw new CsvValidationException($"Line {lineNumber}: invalid 'Value' value.");
         }
         if (!double.IsFinite(value) || value < 0)
         {
-            throw new InvalidDataException($"Line {lineNumber}: invalid Value value.");
+            throw new CsvValidationException($"Line {lineNumber}: 'Value' value out of range.");
         }
 
         return new FileLine(date, executionTime, value);
-    }
-
-    private static void ValidateArguments(string filename, Stream data)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(filename);
-        ArgumentNullException.ThrowIfNull(data);
-
-        if (!data.CanRead)
-        {
-            throw new ArgumentException("Stream is not readable.", nameof(data));
-        }
     }
 
     private readonly record struct FileLine(

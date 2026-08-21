@@ -14,6 +14,7 @@ public sealed class FilesController(
     [HttpPost("import")]
     [Consumes("multipart/form-data")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ImportAsync(
         [FromForm] IFormFile file,
         CancellationToken cancellationToken)
