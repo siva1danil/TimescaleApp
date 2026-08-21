@@ -10,8 +10,5 @@ internal sealed class ResultEntityConfiguration : IEntityTypeConfiguration<Resul
     public void Configure(EntityTypeBuilder<ResultEntity> builder)
     {
         builder.HasKey(result => result.Id);
-
-        builder.Property(result => result.Filename)
-            .HasMaxLength(255);
     }
 }
