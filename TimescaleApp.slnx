@@ -2,5 +2,6 @@
   <Project Path="Data/Data.csproj" />
   <Project Path="Services.Implementations/Services.Implementations.csproj" />
   <Project Path="Services.Interfaces/Services.Interfaces.csproj" />
+  <Project Path="Tests/Tests.csproj" />
   <Project Path="WebApi/WebApi.csproj" />
 </Solution>
