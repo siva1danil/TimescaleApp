@@ -11,6 +11,9 @@ internal sealed class ValueEntityConfiguration : IEntityTypeConfiguration<ValueE
     {
         builder.HasKey(value => value.Id);
 
+        builder.HasIndex(value => new { value.ResultId, value.Date })
+            .IsDescending(false, true);
+
         builder.HasOne(value => value.Result)
             .WithMany(result => result.Values)
             .HasForeignKey(value => value.ResultId)
