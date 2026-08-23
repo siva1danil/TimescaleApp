@@ -117,8 +117,11 @@ public sealed class FileImportService(
             Values = rows
         };
 
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        await dbContext.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({filename}, 0))", cancellationToken);
+
         var existingResult = await dbContext.Results
-            .Include(existing => existing.Values)
             .SingleOrDefaultAsync(existing => existing.Filename == filename, cancellationToken);
 
         if (existingResult is not null)
@@ -127,7 +130,10 @@ public sealed class FileImportService(
         }
 
         dbContext.Results.Add(result);
+
         await dbContext.SaveChangesAsync(cancellationToken);
+
+        await transaction.CommitAsync(cancellationToken);
     }
 
     private static FileLine ParseLine(
