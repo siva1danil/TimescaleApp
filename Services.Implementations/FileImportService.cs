@@ -40,7 +40,9 @@ public sealed class FileImportService(
         DateTimeOffset minDate = default;
         DateTimeOffset maxDate = default;
         double executionTimeSum = 0;
+        double executionTimeAvgStable = 0;
         double valueSum = 0;
+        double valueAvgStable = 0;
         double minValue = 0;
         double maxValue = 0;
 
@@ -88,6 +90,8 @@ public sealed class FileImportService(
 
             executionTimeSum += parsed.ExecutionTime;
             valueSum += parsed.Value;
+            executionTimeAvgStable += (parsed.ExecutionTime - executionTimeAvgStable) / rowNumber;
+            valueAvgStable += (parsed.Value - valueAvgStable) / rowNumber;
         }
         if (rows.Count == 0)
         {
@@ -97,8 +101,8 @@ public sealed class FileImportService(
         values.Sort();
         var middleIndex = values.Count / 2;
         var medianValue = values.Count % 2 == 1 ? values[middleIndex] : values[middleIndex - 1] + (values[middleIndex] - values[middleIndex - 1]) / 2;
-        var averageExecutionTime = executionTimeSum / rows.Count;
-        var averageValue = valueSum / rows.Count;
+        var averageExecutionTime = double.IsFinite(executionTimeSum) ? executionTimeSum / rows.Count : executionTimeAvgStable;
+        var averageValue = double.IsFinite(valueSum) ? valueSum / rows.Count : valueAvgStable;
 
         var result = new ResultEntity
         {
