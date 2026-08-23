@@ -9,12 +9,15 @@ using WebApi.ExceptionHandlers;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var connectionString = builder.Configuration.GetConnectionString("TimescaleAppDatabase")
+    ?? throw new InvalidOperationException("Connection string 'TimescaleAppDatabase' is not configured.");
+builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<CsvValidationExceptionHandler>();
-builder.Services.AddDbContext<AppDbContext>(options => options.UseInMemoryDatabase("TimescaleApp"));
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 builder.Services.AddScoped<IFileImportService, FileImportService>();
 builder.Services.AddScoped<IResultService, ResultService>();
