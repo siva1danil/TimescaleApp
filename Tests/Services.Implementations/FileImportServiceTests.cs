@@ -19,7 +19,7 @@ public sealed class FileImportServiceTests(PostgreSqlFixture database) : IClassF
         await using var dbContext = database.CreateDbContext();
         var service = new FileImportService(dbContext, TimeProvider.System);
 
-        await Assert.ThrowsAnyAsync<ArgumentException>(() => service.ImportAsync(filename!, Stream.Null));
+        await Assert.ThrowsAnyAsync<ArgumentException>(() => service.ImportAsync(filename!, Stream.Null, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -28,7 +28,7 @@ public sealed class FileImportServiceTests(PostgreSqlFixture database) : IClassF
         await using var dbContext = database.CreateDbContext();
         var service = new FileImportService(dbContext, TimeProvider.System);
 
-        await Assert.ThrowsAsync<ArgumentNullException>(() => service.ImportAsync("file.csv", null!));
+        await Assert.ThrowsAsync<ArgumentNullException>(() => service.ImportAsync("file.csv", null!, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -40,7 +40,7 @@ public sealed class FileImportServiceTests(PostgreSqlFixture database) : IClassF
         var stream = new MemoryStream();
         await stream.DisposeAsync();
 
-        await Assert.ThrowsAsync<ArgumentException>(() => service.ImportAsync("file.csv", stream));
+        await Assert.ThrowsAsync<ArgumentException>(() => service.ImportAsync("file.csv", stream, TestContext.Current.CancellationToken));
     }
 
     [Theory]
@@ -69,9 +69,9 @@ public sealed class FileImportServiceTests(PostgreSqlFixture database) : IClassF
 
         await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
 
-        var exception = await Assert.ThrowsAsync<CsvValidationException>(() => service.ImportAsync(filename, stream));
+        var exception = await Assert.ThrowsAsync<CsvValidationException>(() => service.ImportAsync(filename, stream, TestContext.Current.CancellationToken));
         Assert.Contains(expectedMessage, exception.Message, StringComparison.Ordinal);
-        Assert.False(await dbContext.Results.AnyAsync(result => result.Filename == filename));
+        Assert.False(await dbContext.Results.AnyAsync(result => result.Filename == filename, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -83,11 +83,11 @@ public sealed class FileImportServiceTests(PostgreSqlFixture database) : IClassF
         var csv = "Date;ExecutionTime;Value\n2020-01-01T00-00-30.0000Z;1;10\n2020-01-01T00-00-00.0000Z;2;2\n2020-01-01T00-00-20.0000Z;3;8\n2020-01-01T00-00-10.0000Z;4;4";
         await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
 
-        await service.ImportAsync("values.csv", stream);
+        await service.ImportAsync("values.csv", stream, TestContext.Current.CancellationToken);
         var result = await dbContext.Results
             .AsNoTracking()
             .Include(item => item.Values)
-            .SingleAsync(item => item.Filename == "values.csv");
+            .SingleAsync(item => item.Filename == "values.csv", cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(30, result.DateDeltaSeconds);
         Assert.Equal(new DateTimeOffset(2020, 1, 1, 0, 0, 0, TimeSpan.Zero), result.FirstOperationDate);
@@ -109,10 +109,10 @@ public sealed class FileImportServiceTests(PostgreSqlFixture database) : IClassF
         var csv = "Date;ExecutionTime;Value\n2020-01-01T00-00-00.0000Z;1;100\n2020-01-01T00-00-01.0000Z;1;1\n2020-01-01T00-00-02.0000Z;1;7";
         await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
 
-        await service.ImportAsync("odd-median.csv", stream);
+        await service.ImportAsync("odd-median.csv", stream, TestContext.Current.CancellationToken);
         var result = await dbContext.Results
             .AsNoTracking()
-            .SingleAsync(item => item.Filename == "odd-median.csv");
+            .SingleAsync(item => item.Filename == "odd-median.csv", cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(7, result.MedianValue);
     }
@@ -127,10 +127,10 @@ public sealed class FileImportServiceTests(PostgreSqlFixture database) : IClassF
         var csv = $"Date;ExecutionTime;Value\n2020-01-01T00-00-00.0000Z;{doubleMaxValueStr};{doubleMaxValueStr}\n2020-01-01T00-00-01.0000Z;{doubleMaxValueStr};{doubleMaxValueStr}";
         await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
 
-        await service.ImportAsync("overflow.csv", stream);
+        await service.ImportAsync("overflow.csv", stream, TestContext.Current.CancellationToken);
         var result = await dbContext.Results
             .AsNoTracking()
-            .SingleAsync(item => item.Filename == "overflow.csv");
+            .SingleAsync(item => item.Filename == "overflow.csv", cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Equal(double.MaxValue, result.AverageExecutionTime);
         Assert.Equal(double.MaxValue, result.AverageValue);
@@ -151,18 +151,18 @@ public sealed class FileImportServiceTests(PostgreSqlFixture database) : IClassF
         await using var stream1 = new MemoryStream(Encoding.UTF8.GetBytes(csv1));
         await using var stream2 = new MemoryStream(Encoding.UTF8.GetBytes(csv2));
 
-        await service.ImportAsync("replacement.csv", stream1);
-        await service.ImportAsync("replacement.csv", stream2);
+        await service.ImportAsync("replacement.csv", stream1, TestContext.Current.CancellationToken);
+        await service.ImportAsync("replacement.csv", stream2, TestContext.Current.CancellationToken);
 
         var result = await dbContext.Results
             .AsNoTracking()
             .Include(item => item.Values)
-            .SingleAsync(item => item.Filename == "replacement.csv");
+            .SingleAsync(item => item.Filename == "replacement.csv", cancellationToken: TestContext.Current.CancellationToken);
 
         var value = Assert.Single(result.Values);
         Assert.Equal(9, value.ExecutionTime);
         Assert.Equal(9, value.Value);
-        Assert.Equal(1, await dbContext.Results.CountAsync(item => item.Filename == "replacement.csv"));
+        Assert.Equal(1, await dbContext.Results.CountAsync(item => item.Filename == "replacement.csv", cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -175,12 +175,12 @@ public sealed class FileImportServiceTests(PostgreSqlFixture database) : IClassF
         await using var stream1 = new MemoryStream(Encoding.UTF8.GetBytes(csv1));
         await using var stream2 = new MemoryStream(Encoding.UTF8.GetBytes("Date;ExecutionTime;Value\ninvalid"));
 
-        await service.ImportAsync("preserved.csv", stream1);
-        await Assert.ThrowsAsync<CsvValidationException>(() => service.ImportAsync("preserved.csv", stream2));
+        await service.ImportAsync("preserved.csv", stream1, TestContext.Current.CancellationToken);
+        await Assert.ThrowsAsync<CsvValidationException>(() => service.ImportAsync("preserved.csv", stream2, TestContext.Current.CancellationToken));
         var result = await dbContext.Results
             .AsNoTracking()
             .Include(item => item.Values)
-            .SingleAsync(item => item.Filename == "preserved.csv");
+            .SingleAsync(item => item.Filename == "preserved.csv", cancellationToken: TestContext.Current.CancellationToken);
 
         var value = Assert.Single(result.Values);
         Assert.Equal(42, value.Value);
@@ -198,13 +198,13 @@ public sealed class FileImportServiceTests(PostgreSqlFixture database) : IClassF
         var csv = string.Join('\n', rows.Prepend("Date;ExecutionTime;Value"));
         await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
 
-        await service.ImportAsync("10000.csv", stream);
+        await service.ImportAsync("10000.csv", stream, TestContext.Current.CancellationToken);
 
         var resultId = await dbContext.Results
             .Where(result => result.Filename == "10000.csv")
             .Select(result => result.Id)
-            .SingleAsync();
-        Assert.Equal(10000, await dbContext.Values.CountAsync(value => value.ResultId == resultId));
+            .SingleAsync(cancellationToken: TestContext.Current.CancellationToken);
+        Assert.Equal(10000, await dbContext.Values.CountAsync(value => value.ResultId == resultId, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -219,8 +219,8 @@ public sealed class FileImportServiceTests(PostgreSqlFixture database) : IClassF
         var csv = string.Join('\n', rows.Prepend("Date;ExecutionTime;Value"));
         await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv));
 
-        await Assert.ThrowsAsync<CsvValidationException>(() => service.ImportAsync("10001.csv", stream));
-        Assert.False(await dbContext.Results.AnyAsync(result => result.Filename == "10001.csv"));
+        await Assert.ThrowsAsync<CsvValidationException>(() => service.ImportAsync("10001.csv", stream, TestContext.Current.CancellationToken));
+        Assert.False(await dbContext.Results.AnyAsync(result => result.Filename == "10001.csv", cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -243,7 +243,7 @@ public sealed class FileImportServiceTests(PostgreSqlFixture database) : IClassF
         var result = await dbContext.Results
             .AsNoTracking()
             .Include(item => item.Values)
-            .SingleAsync(item => item.Filename == "concurrent.csv");
+            .SingleAsync(item => item.Filename == "concurrent.csv", cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.Single(result.Values);
         Assert.InRange(result.Values.Single().Value, 1, 20);

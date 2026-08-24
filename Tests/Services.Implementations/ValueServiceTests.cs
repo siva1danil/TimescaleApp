@@ -16,7 +16,7 @@ public sealed class ValueServiceTests(PostgreSqlFixture database) : IClassFixtur
         await using var dbContext = database.CreateDbContext();
         var service = new ValueService(dbContext);
 
-        await Assert.ThrowsAnyAsync<ArgumentException>(() => service.GetLatestAsync(filename!));
+        await Assert.ThrowsAnyAsync<ArgumentException>(() => service.GetLatestAsync(filename!, TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -24,9 +24,9 @@ public sealed class ValueServiceTests(PostgreSqlFixture database) : IClassFixtur
     {
         await using var dbContext = database.CreateDbContext();
         var service = new ValueService(dbContext);
-        await using var transaction = await dbContext.Database.BeginTransactionAsync();
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(TestContext.Current.CancellationToken);
 
-        var result = await service.GetLatestAsync("file.csv");
+        var result = await service.GetLatestAsync("file.csv", TestContext.Current.CancellationToken);
 
         Assert.Empty(result);
     }
@@ -36,7 +36,7 @@ public sealed class ValueServiceTests(PostgreSqlFixture database) : IClassFixtur
     {
         await using var dbContext = database.CreateDbContext();
         var service = new ValueService(dbContext);
-        await using var transaction = await dbContext.Database.BeginTransactionAsync();
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(TestContext.Current.CancellationToken);
 
         var date = new DateTimeOffset(2026, 8, 23, 0, 0, 0, TimeSpan.Zero);
 
@@ -67,9 +67,9 @@ public sealed class ValueServiceTests(PostgreSqlFixture database) : IClassFixtur
                     }
                 ]
             });
-        await dbContext.SaveChangesAsync();
+        await dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var result = await service.GetLatestAsync("1.csv");
+        var result = await service.GetLatestAsync("1.csv", TestContext.Current.CancellationToken);
 
         Assert.Single(result);
         Assert.Equal(new ValueModel(date, 12.3, 45.6), result[0]);
@@ -83,7 +83,7 @@ public sealed class ValueServiceTests(PostgreSqlFixture database) : IClassFixtur
     {
         await using var dbContext = database.CreateDbContext();
         var service = new ValueService(dbContext);
-        await using var transaction = await dbContext.Database.BeginTransactionAsync();
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(TestContext.Current.CancellationToken);
 
         var date = new DateTimeOffset(2026, 8, 23, 0, 0, 0, TimeSpan.Zero);
         var values = input
@@ -100,9 +100,9 @@ public sealed class ValueServiceTests(PostgreSqlFixture database) : IClassFixtur
             Filename = "file.csv",
             Values = values
         });
-        await dbContext.SaveChangesAsync();
+        await dbContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
-        var result = await service.GetLatestAsync("file.csv");
+        var result = await service.GetLatestAsync("file.csv", TestContext.Current.CancellationToken);
 
         Assert.Equal(expected.Length, result.Count);
         Assert.Equal(expected.Select(value => (double)value), result.Select(value => value.Value));

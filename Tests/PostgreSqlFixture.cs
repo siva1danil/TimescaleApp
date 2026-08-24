@@ -22,7 +22,7 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
         return new AppDbContext(options);
     }
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         await _container.StartAsync();
 
@@ -31,7 +31,7 @@ public sealed class PostgreSqlFixture : IAsyncLifetime
         await dbContext.Database.MigrateAsync();
     }
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         await _container.DisposeAsync();
     }
